@@ -101,20 +101,6 @@ $config['form_login'] = array(
 			'rules'       => 'required|alpha|min_length[3]|max_length[20]',
 		),
 
-		// Dropdown:
-		'dropdown' => array(
-			'type'        => 'dropdown',
-			'label'       => 'Your favorite',
-			'icon'        => 'eye-open',
-			'value'       => 'test-option1',
-			'options'     => array(
-				''            => 'Please select',
-				'DMT'         => 'C12H16N2',
-				'LSD'         => 'C20H25N3O',
-				'Psilocybin ' => 'C12H17N2O4P ',
-			),
-		),
-
 	), // Step1 fieldset
 
 	// Other fieldsets & fields...
