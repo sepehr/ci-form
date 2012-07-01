@@ -38,7 +38,7 @@ Move each file to its corresponding directory in CodeIgniter `application/` dire
 			else
 			{
 				// Generate the form markup
-				$form = Form::get('example_login');
+				$form = Form::get('form_example');
 
 				// And pass it to the view
 				// In the view file you just need to echo the $form
