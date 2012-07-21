@@ -1,15 +1,22 @@
 #CodeIgniter Form API
-The library empowers CodeIgniter with a clean, powerful, drupal-inspired and bootstrap-ready form API. The structure lets you define your form structure, fields and validation rules in separate files, so it's easier to develop and will give you pretty cleaner controller and view files.
+The library empowers CodeIgniter with a clean, powerful, drupal-inspired and bootstrap-ready form API. The structure lets you define your form structure, fields and validation rules in separate files, so it's easier to develop and will give you pretty cleaner controller and view files at the end.
 
-The code is very alpha for now and it's work in progress.
+The code is very alpha for now and it's a work in progress.
 
 ## Features
 * Form definition arrays (Drupal-like) as separate config files.
 * Form validation integration.
+* Support for inline subform definition.
+* Support for form specific custom validation errors.
+* Support for field data callbacks (Model integration).
+* Support for raw makup fields.
+* Ability to fetch subviews.
+* HTML 5 ready.
 * Twitter Bootstrap ready.
 * Client-side multistep forms.
-* Works great with Modular Extensions.
-* etc.
+* Works great with Modular Extensions and Bonfire's Template library.
+* Support for Drupal-like `form_alter` callbacks via CI Events library.
+* Many more...
 
 ## Installation
 Move each file to its corresponding directory in CodeIgniter `application/` directory and you're simply done.
@@ -37,6 +44,10 @@ Move each file to its corresponding directory in CodeIgniter `application/` dire
 			// Form is not submitted/validated yet
 			else
 			{
+				// Set form defaults (update forms)
+				$user = (array) $this->user_model->get();
+				Form::set_defaults($user);
+
 				// Generate the form markup
 				$form = Form::get('form_example');
 
@@ -49,9 +60,14 @@ Move each file to its corresponding directory in CodeIgniter `application/` dire
 	}
 ```
 
-## Form definiton
+## Basic form definiton
 ```php
 $config['form_login'] = array(
+	// Errors:
+	'errors' => array(
+		'callback__custom_validation' => 'Custom validation error message.',
+	),
+
 	// Form:
 	'action'        => '',
 	'prefix'        => '',
