@@ -13,3 +13,16 @@
 
 // ------------------------------------------------------------------------
 
+if ( ! function_exists('form'))
+{
+	/**
+	 * Renders a form definition array into HTML using Form library.
+	 */
+	function form(array $field, $subform = TRUE)
+	{
+		$CI =& get_instance();
+		class_exists('Form') OR $CI->load->library('Form');
+
+		return Form::render($form, $subform);
+	}
+}
