@@ -34,11 +34,14 @@ Move each file to its corresponding directory in CodeIgniter `application/` dire
 			$this->load->library('Form');
 
 			// Validate form values against its rules
-			// You can also specify the module name. e.g. "users/form_register"
+			// You can also specify the module name. e.g. "users/form_example"
 			if ( Form::validate('form_example') )
 			{
-				// Model interaction here...
-				// And maybe redirect user...
+				// Model interaction, etc...
+
+				// Flush form data if required, this will save us
+				// from expensive and unnecessary self redirects
+				Form::flush();
 			}
 
 			// Form is not submitted/validated yet
@@ -63,12 +66,17 @@ Move each file to its corresponding directory in CodeIgniter `application/` dire
 ## Basic form definiton
 ```php
 $config['form_login'] = array(
-	// Errors:
+
+	//--------------------------------------------------------------------
+	// Custom validation error messages
+	//--------------------------------------------------------------------
 	'errors' => array(
 		'callback__custom_validation' => 'Custom validation error message.',
 	),
 
-	// Form:
+	//--------------------------------------------------------------------
+	// Form definition, support for client-side multistep forms:
+	//--------------------------------------------------------------------
 	'action'        => '',
 	'prefix'        => '',
 	'suffix'        => '',
@@ -76,11 +84,13 @@ $config['form_login'] = array(
 	'multistep_nav' => TRUE,
 	'multipart'     => FALSE,
 	'attributes'    => array(
-		'class' => 'login-form',
-		'id' => 'jobseeker-login-form'
+		'class' => 'register-form',
+		'id'    => 'example-register-form'
 	),
 
-	// Step1 fieldset:
+	//--------------------------------------------------------------------
+	// Fieldset/accordion definition:
+	//--------------------------------------------------------------------
 	'step1' => array(
 		'type'   => 'fieldset',
 		'legend' => 'Personal information',
@@ -99,22 +109,102 @@ $config['form_login'] = array(
 			'nav_next_label' => 'Next',
 		),
 
-		// Firstname:
+		//--------------------------------------------------------------------
+		// Firstname: Sample text field
+		//--------------------------------------------------------------------
 		'firstname' => array(
-			'type'        => 'text',
-			'label'       => 'Firstname',
-			'icon'        => 'user',
-			'placeholder' => 'e.g. Your firstname',
-			'rules'       => 'required|alpha|min_length[3]|max_length[20]',
+			'type'          => 'text',
+			'label'         => 'Firstname',
+			'icon'          => 'user',
+			'placeholder'   => 'e.g. Your firstname',
+			'rules'         => 'required|alpha|min_length[3]|max_length[20]',
+			// Accepts merkup:
+			'after'         => '',
+			'before'        => '',
+			'prefix'        => '',
+			'suffix'        => '',
+			// Also accepts field definition arrays:
+			'suffix_inline' => '',
+
 		),
 
-		// Lastname:
+		//--------------------------------------------------------------------
+		// Lastname: Sample text field
+		//--------------------------------------------------------------------
 		'lastname' => array(
 			'type'        => 'text',
 			'label'       => 'Lastname',
 			'icon'        => 'user',
 			'placeholder' => 'e.g. Your firstname',
 			'rules'       => 'required|alpha|min_length[3]|max_length[20]',
+		),
+
+		//--------------------------------------------------------------------
+		// Subform:
+		//--------------------------------------------------------------------
+		'credit_subform' => array(
+			'type'    => 'subform',
+			'subform' => '[my_module/]subform_credit_card'
+		),
+
+		//--------------------------------------------------------------------
+		// Street address: Inline fields
+		//--------------------------------------------------------------------
+		'street' => array(
+			'type'        => 'text',
+			'label'       => 'Street address',
+			'icon'        => 'road',
+			'placeholder' => 'e.g. 8 High St.',
+			'rules'       => 'trim|required',
+
+			// Inline street address 2:
+			'suffix_inline'      => array(
+				'street2' => array(
+					'type'        => 'text',
+					'icon'        => 'road',
+					'placeholder' => '2nd line...',
+					'rules'       => 'trim',
+					'class'       => 'span1',
+					'inline'      => TRUE,
+				),
+			),
+		),
+
+		//--------------------------------------------------------------------
+		// Country: Data callbacks, model interaction:
+		//--------------------------------------------------------------------
+		'country' => array(
+			'type'       => 'dropdown',
+			'label'      => 'Country',
+			'icon'       => 'map-marker',
+			// Custom validation rule
+			'rules'      => 'callback__check_country[county]',
+			// Model data callback
+			'data'       => 'my_model.get_countries,
+		),
+
+		//--------------------------------------------------------------------
+		// County: Data callbacks, module model interaction with args:
+		//--------------------------------------------------------------------
+		'county' => array(
+			'type'         => 'dropdown',
+			'label'        => 'County',
+			'icon'         => 'map-marker',
+			'rules'        => 'required',
+			'data'         => 'my_module/my_model.get_counties(TRUE)',
+			'cached_value' => TRUE,
+		),
+
+		//--------------------------------------------------------------------
+		// Inline views:
+		//--------------------------------------------------------------------
+		'sectors' => array(
+			'type'  => 'markup',
+			'view'  => '[my_module/]markup_sectors',
+			// Passing data keys, values will be fetched from defaults,
+			// We can also set values here:
+			'data'  => array('sectors', 'user_sectors'),
+			'rules' => 'required|callback__check_sectors',
 		),
 
 	), // Step1 fieldset
@@ -128,5 +218,8 @@ For more information on form definition array formats, please read the `config/f
 ### TODOs
 * Debug mode
 * Dependent dropdowns
+* Custom field renderrer callbacks
 * Move templates into config files
 * Form caching (CI cache driver integration)
+* Restructure as a standalone PHP library.
+* Cleanup!
