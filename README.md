@@ -124,3 +124,9 @@ $config['form_login'] = array(
 ```
 
 For more information on form definition array formats, please read the `config/form_example.php` file.
+
+### TODOs
+* Debug mode
+* Dependent dropdowns
+* Move templates into config files
+* Form caching (CI cache driver integration)
