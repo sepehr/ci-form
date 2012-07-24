@@ -35,6 +35,7 @@
  * 				- Ajax API, if possible.
  * 				- Move templates into config files.
  * 				- Make use of set_checkbox(), set_radio() when populating toggles.
+ * 				- Language class integration.
  */
 class Form {
 
@@ -61,13 +62,15 @@ class Form {
 	 * @var string
 	 */
 	private static $_form_defaults = array(
-		'action'     => '',
-		'prefix'     => '',
-		'suffix'     => '',
-		'multipart'  => FALSE,
-		'multistep'  => FALSE,
-		'errors'     => array(),
-		'attributes' => array(),
+		'action'           => '',
+		'prefix'           => '',
+		'suffix'           => '',
+		'errors'           => array(),
+		'attributes'       => array(),
+		'multipart'        => FALSE,
+		'multistep'        => FALSE,
+		'multistep_nav'    => FALSE,
+		'multistep_manual' => FALSE,
 	);
 
 	//--------------------------------------------------------------------
@@ -130,6 +133,7 @@ class Form {
 		'rules'           => '',
 		'before'          => '',
 		'after'           => '',
+		'private'         => '',
 	);
 
 	//--------------------------------------------------------------------
@@ -177,6 +181,7 @@ class Form {
 		</div> <!-- /.controls -->
 	</div> <!-- /.control-group -->
 	{after}
+	{private}
 	';
 
 	//--------------------------------------------------------------------
@@ -192,6 +197,7 @@ class Form {
 		<{element} id="{id}" class="{class}" placeholder="{placeholder}" name="{name}" type="{type}" value="{value}" {attributes} {disabled}{readonly}{checked}{selected} />
 	</div> <!-- /.input-prepend -->
 	{after}
+	{private}
 	';
 
 	//--------------------------------------------------------------------
@@ -247,6 +253,7 @@ class Form {
 		</div> <!-- /.controls -->
 	</div> <!-- /.control-group -->
 	{after}
+	{private}
 	';
 
 	//--------------------------------------------------------------------
@@ -263,6 +270,7 @@ class Form {
 		{options}
 	</div>
 	{after}
+	{private}
 	';
 
 	//--------------------------------------------------------------------
@@ -277,6 +285,7 @@ class Form {
 		<{element} id="{id}" class="form-submit btn {class}" {attributes}>{value}</{element}>
 	</div> <!-- /.controls -->
 	{after}
+	{private}
 	';
 
 	//--------------------------------------------------------------------
@@ -289,6 +298,7 @@ class Form {
 	{before}
 	<{element} id="{id}" class="form-submit btn {class}" style="float:none" {attributes}>{value}</{element}>
 	{after}
+	{private}
 	';
 
 	//--------------------------------------------------------------------
@@ -314,6 +324,7 @@ class Form {
 		</div> <!-- /.controls -->
 	</div> <!-- /.control-group -->
 	{after}
+	{private}
 	';
 
 	//--------------------------------------------------------------------
@@ -334,6 +345,7 @@ class Form {
 		{suffix}
 	</div> <!-- /.control-group -->
 	{after}
+	{private}
 	';
 
 	//--------------------------------------------------------------------
@@ -348,6 +360,7 @@ class Form {
 		<input type="{toggle}" name="{name}" value="{value}" {attributes} {checked} /> {label}
 	</label>
 	{after}
+	{private}
 	';
 
 	//--------------------------------------------------------------------
@@ -378,7 +391,7 @@ class Form {
 		// Get CI superobject
 		self::$CI =& get_instance();
 
-		// And load the form helper if not yet loaded
+		// And load the form helper
 		self::$CI->load->helper('form_helper');
 	}
 
@@ -412,8 +425,9 @@ class Form {
 	 */
 	public static function load($form_name, $values = FALSE)
 	{
-		// Load form definition file
-		self::$CI->load->config($form_name);
+		// Load form definition file,
+		// and set it to fail gracefully
+		self::$CI->load->config($form_name, FALSE, TRUE);
 
 		// Get the array
 		$form = self::$CI->config->item(basename($form_name));
@@ -448,7 +462,7 @@ class Form {
 		$fields = $form = array_merge(self::$_form_defaults, $form);
 
 		// Render openning tag
-		$subform OR list($output, $fields) = self::_render_form_open($form, $form['multistep']);
+		$subform OR list($output, $fields) = self::_render_form_open($form, $form['multistep'], $form['multistep_manual']);
 
 		// Render fields and fieldsets
 		$output .= self::_render_fields($fields, $form['multistep']);
@@ -567,35 +581,38 @@ class Form {
 	 * Checks checkbox/radio element values.
 	 *
 	 * @return boolean
+	 * @todo   REVIEW, FIX
 	 */
 	public static function value_toggled($name, $value, $checked = FALSE)
 	{
 		$clean = self::clean($name);
 
-		// Check $_POST for single booleans
-		if (isset($_POST[$name]))
+		// Posted, check $_POST
+		if (isset($_POST[$clean]))
 		{
-			return (bool) $_POST[$name];
+			return is_array($_POST[$clean])
+				?  in_array($value, $_POST[$clean])
+				:  $_POST[$clean];
 		}
 
-		// Check $_POST for multiple values
-		if (isset($_POST[$clean]) AND is_array($_POST[$clean]))
+		// Check if it's posted, but not checked
+		if ( ! empty($_POST) AND isset($_POST[$clean . '__toggle']))
 		{
-			return in_array($value, $_POST[$clean]);
+			// Set it! this will be a lil help for our controllers/models
+			$_POST[$clean] = FALSE;
+
+			return FALSE;
 		}
 
-		// Check self:$_values for single booleans
-		if (isset(self::$_values[$name]))
+		// Check self::$_values for single booleans
+		if (isset(self::$_values[$clean]))
 		{
-			return (bool) self::$_values[$name];
+			return is_array(self::$_values[$clean])
+				?  in_array($value, self::$_values[$clean])
+				:  (bool) self::$_values[$name];
 		}
 
-		// Check self:$_values for multiple values
-		if (isset(self::$_values[$clean]) AND is_array(self::$_values[$clean]))
-		{
-			return in_array($value, self::$_values[$clean]);
-		}
-
+		// Return the default passed
 		return $checked;
 	}
 
@@ -669,7 +686,7 @@ class Form {
 			}
 
 			// Let submit typed inputs to be rendered as buttons
-			($data['type'] == 'submit') AND $data['type'] = 'button';
+			$data['type'] == 'submit' AND $data['type'] = 'button';
 
 			// Prepare checkbox/radiobutton elements, @TODO: Review.
 			if ($data['type'] == 'checkbox' OR $data['type'] == 'radio')
@@ -678,7 +695,7 @@ class Form {
 				// call _render_toggles() to support renderring
 				// checkbox/radio groups
 				$data['toggle'] = $data['type'];
-				$data['type'] = 'toggles';
+				$data['type']   = 'toggles';
 			}
 
 			// 1. User custom renderrer: @TODO
@@ -976,8 +993,13 @@ class Form {
 			), $name);
 		}
 
+		// Set rendered elements as options
 		$field['options'] = $toggles;
 		unset($field['value']);
+
+		// Append a hidden helper field, this will let
+		// us detect unchecked toggles on form submits
+		$field['private'] = self::_render_hidden('1', self::clean($name) . '__toggle');
 
 		return self::_render_field($field, $name, self::$_toggles_template);
 	}
@@ -1123,8 +1145,11 @@ class Form {
 	 */
 	public static function _render_hidden($field, $name, $multistep = FALSE)
 	{
+		// Get field value if it's an array
+		is_array($field) AND $field = $field['value'];
+
 		$hidden = str_replace('{name}', $name, self::$_hidden_template);
-		return str_replace('{value}', $field['value'], $hidden);
+		return str_replace('{value}', $field, $hidden);
 	}
 
 	//--------------------------------------------------------------------
@@ -1134,15 +1159,18 @@ class Form {
 	 *
 	 * @return array
 	 */
-	private static function _render_form_open($form, $multistep = FALSE)
+	private static function _render_form_open($form, $multistep = FALSE, $manual = FALSE)
 	{
 		// Open form, multipart if required
 		$output = $form['prefix'] . ($form['multipart']
 			? form_open_multipart($form['action'], $form['attributes'])
 			: form_open($form['action'], $form['attributes']));
 
+		// Prepare accordion collapse type
+		$manual = $manual ? 'manual' : 'auto';
+
 		// If the form is multistep, append accordion wrapper
-		$multistep AND $output .= '<div class="accordion" id="form-accordion">';
+		$multistep AND $output .= '<div class="accordion" id="form-accordion" data-collapse-type="' . $manual . '">';
 
 		// Prep form array for field render
 		foreach (self::$_form_defaults as $key => $value)
@@ -1230,14 +1258,12 @@ class Form {
 		$arg    = isset($match[1]) ? $match[1] : FALSE;
 		strpos($method, '(') !== FALSE AND $method = strstr($method, '(', TRUE);
 
-// var_dump($data, 'model: '.$model_name, 'merhod: '.$method, 'arg: '.$arg);
-
 		// Typecast boolean args
 		if (strtolower($arg) == 'true' OR strtolower($arg) == 'false')
 		{
 			$arg = (bool) $arg;
 		}
-// var_dump('booled arg:', $arg);
+
 		// Load model, if not available
 		isset(self::$CI->$model_name) OR self::$CI->load->model($model, $model_name);
 
