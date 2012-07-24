@@ -71,6 +71,7 @@ $config['form_login'] = array(
 	// Custom validation error messages
 	//--------------------------------------------------------------------
 	'errors' => array(
+		'required'                    => 'This field is required.',
 		'callback__custom_validation' => 'Custom validation error message.',
 	),
 
