@@ -224,3 +224,5 @@ For more information on form definition array formats, please read the `config/f
 * Form caching (CI cache driver integration)
 * Restructure as a standalone PHP library.
 * Cleanup!
+* Support for PRG pattern using CI sessions.
+* Add more examples.
