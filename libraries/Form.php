@@ -1,4 +1,4 @@
-<?php if (!defined('BASEPATH')) exit('No direct script access allowed');
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
 /**
  * CodeIgniter Drupal-inspited Form API plus Bootstrap integration
  *
@@ -36,6 +36,10 @@
  * 				- Move templates into config files.
  * 				- Make use of set_checkbox(), set_radio() when populating toggles.
  * 				- Language class integration.
+ * 				- API for easy setting of data attributes.
+ * 				- Support for Post/Redirect/Get pattern via sessions.
+ * 				- Support for other UI frameworks (pluggable templates)
+ * 				- Builder UI ;)
  */
 class Form {
 
@@ -45,7 +49,7 @@ class Form {
 	 */
 	private static $CI;
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Stores the form default values.
@@ -53,9 +57,9 @@ class Form {
 	 */
 	private static $_values = array();
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 	// Defaults
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Stores field defaults.
@@ -73,7 +77,7 @@ class Form {
 		'multistep_manual' => FALSE,
 	);
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Stores fieldset defaults.
@@ -91,7 +95,7 @@ class Form {
 		'after'      => '',
 	);
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Stores field defaults.
@@ -136,7 +140,7 @@ class Form {
 		'private'         => '',
 	);
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Stores input types.
@@ -156,9 +160,9 @@ class Form {
 		'time',     'url',
 	);
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 	// Templates
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Stores common fields template prototype.
@@ -184,7 +188,7 @@ class Form {
 	{private}
 	';
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Stores common inline fields template prototype.
@@ -200,17 +204,17 @@ class Form {
 	{private}
 	';
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Stores hidden fields template prototype.
 	 * @var string
 	 */
 	private static $_hidden_template = '
-	<input type="hidden" name="{name}" value="{value}" />
+	<input type="hidden" id="{id}" class="{class}" name="{name}" value="{value}" />
 	';
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Stores a field help markup prototype.
@@ -230,7 +234,7 @@ class Form {
 	</div> <!-- /.accordion-group -->
 	';
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Stores a dropdown template prototype.
@@ -256,7 +260,7 @@ class Form {
 	{private}
 	';
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Stores an inline dropdown template prototype.
@@ -273,7 +277,7 @@ class Form {
 	{private}
 	';
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Stores a button template prototype.
@@ -283,12 +287,13 @@ class Form {
 	{before}
 	<div class="controls{form_actions}">
 		<{element} id="{id}" class="form-submit btn {class}" {attributes}>{value}</{element}>
+		{suffix_inline}
 	</div> <!-- /.controls -->
 	{after}
 	{private}
 	';
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Stores an inline button template prototype.
@@ -301,7 +306,7 @@ class Form {
 	{private}
 	';
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Stores a textarea template prototype.
@@ -327,7 +332,7 @@ class Form {
 	{private}
 	';
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Stores checkboxes/radios template prototype.
@@ -348,7 +353,7 @@ class Form {
 	{private}
 	';
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Stores an inline checkbox/radio template prototype.
@@ -363,7 +368,7 @@ class Form {
 	{private}
 	';
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Stores a field icon prototype.
@@ -371,7 +376,7 @@ class Form {
 	 */
 	private static $_icon_template = '<i class="icon icon-{icon}"></i>';
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Stores a field help markup prototype.
@@ -379,7 +384,7 @@ class Form {
 	 */
 	private static $_help_template = '<span class="help-{type}">{help}</span>';
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Form API Constructor
@@ -395,9 +400,9 @@ class Form {
 		self::$CI->load->helper('form_helper');
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 	// API Functions
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Loads a form definition and returns the rendered output.
@@ -416,7 +421,7 @@ class Form {
 		return $render ? self::render($cache[$form_name]) : $cache[$form_name];
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Loads a form definition array from a config file.
@@ -427,21 +432,26 @@ class Form {
 	{
 		// Load form definition file,
 		// and set it to fail gracefully
-		self::$CI->load->config($form_name, FALSE, TRUE);
+		if (self::$CI->load->config($form_name, FALSE, TRUE))
+		{
+			// Get the array
+			$form = self::$CI->config->item(basename($form_name));
 
-		// Get the array
-		$form = self::$CI->config->item(basename($form_name));
+			// Set default field values to be overriden, if required
+			self::set_defaults($values);
 
-		// Set default field values to be overriden, if required
-		self::set_defaults($values);
+			// Allow other parties to manipulate the form array
+			class_exists('Events') AND Events::trigger("form_{$form_name}_alter", $form);
 
-		// Allow other parties to manipulate the form array
-		class_exists('Events') AND Events::trigger("form_{$form_name}_alter", $form);
+			return $form;
+		}
 
-		return $form;
+		// Failed to load form definition file
+		log_message('error', 'Form definition failed: ' . $form_name);
+		return FALSE;
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Rendered a form definition array/sub-array into its HTML equivalent.
@@ -473,19 +483,22 @@ class Form {
 		return $output;
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
-	 * Validates a form against the rules.
+	 * Validates a form against its rules.
 	 *
 	 * This might be used instead of the $this->form_validation->[set_rules()|run()];
 	 *
 	 * @return boolean
 	 */
-	public static function validate($form_name)
+	public static function validate($form_name, $CI = FALSE)
 	{
 		// Make sure that we have CI form validation class already in place.
-		class_exists('CI_Form_validation') OR $this->load->library('form_validation');
+		class_exists('CI_Form_validation') OR self::$CI->load->library('form_validation');
+
+		// Workaround the HMVC issue
+		self::validate_init($CI);
 
 		// Load the form array
 		$form = self::load($form_name);
@@ -505,7 +518,36 @@ class Form {
 			->run();
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
+
+	/**
+	 * Works around form validation HMVC issue.
+	 *
+	 * @return void
+	 */
+	public static function validate_init($CI = FALSE)
+	{
+		is_object($CI) AND self::$CI->form_validation->CI = $CI;
+	}
+
+	// --------------------------------------------------------------------
+
+	/**
+	 * Extracts validation rules from a form definition.
+	 *
+	 * @return array
+	 */
+	public static function validate_rules($form_name)
+	{
+		if ($form = self::load($form_name))
+		{
+			return self::_validate_rules($form);
+		}
+
+		return FALSE;
+	}
+
+	// --------------------------------------------------------------------
 
 	/**
 	 * Sets custom callback error message.
@@ -526,12 +568,12 @@ class Form {
 
 		// Make sure that we have CI form validation class already in place.
 		// @TODO: Cache check results.
-		class_exists('CI_Form_validation') OR $this->load->library('form_validation');
+		class_exists('CI_Form_validation') OR self::$CI->load->library('form_validation');
 
 		self::$CI->form_validation->set_message($callback, $error);
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Flushes form validation field data.
@@ -546,24 +588,38 @@ class Form {
 		// Flush form validation data
 		if (class_exists('CI_Form_validation'))
 		{
-			// Here comes the hack!
-			unset(self::$CI->form_validation);
+			// Reset form validation field data, here comes the hack!
+			self::$CI->form_validation = class_exists('MY_Form_validation')
+				? new MY_Form_validation()
+				: new CI_Form_validation();
 		}
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
-	 * Prepares the value for display in the form.
+	 * Prepares the value for display in the form. Supports arrays.
 	 *
 	 * @return string
 	 */
 	public static function value($name, $default = '')
 	{
+		// $_POST array values?
+		if ($value = self::_extract_array_value($name, $_POST))
+		{
+			return form_prep($value);
+		}
+
 		// $_POST values?
 		if (isset($_POST[$name]))
 		{
 			return form_prep($_POST[$name]);
+		}
+
+		// Default array values?
+		if ($value = self::_extract_array_value($name, self::$_values))
+		{
+			return form_prep($value);
 		}
 
 		// Default values?
@@ -572,10 +628,11 @@ class Form {
 			return form_prep(self::$_values[$name]);
 		}
 
+		// Nothing, set the passed default value
 		return set_value($name, $default);
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Checks checkbox/radio element values.
@@ -616,19 +673,41 @@ class Form {
 		return $checked;
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Returns form validation errors.
 	 *
 	 * @return boolean
 	 */
-	public static function errors()
+	public static function errors($to_array = FALSE)
 	{
+		if ($to_array)
+		{
+			// Remove error delimiters
+			self::$CI->form_validation->set_error_delimiters(FALSE, FALSE);
+
+			// Return validation errors array
+			return array_filter(explode("\n", validation_errors()));
+		}
+
 		return validation_errors();
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
+
+	/**
+	 * Checks whether the form has errors or what?
+	 *
+	 * @return boolean
+	 */
+	public static function has_errors()
+	{
+		$errors = self::errors(TRUE);
+		return ! empty($errors);
+	}
+
+	// --------------------------------------------------------------------
 
 	/**
 	 * Sets form default valurs
@@ -641,7 +720,7 @@ class Form {
 		is_array($values)  AND self::$_values = $values;
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Cleans string from []s.
@@ -658,9 +737,9 @@ class Form {
 		return str_replace(array('[', ']'), array('-', ''), $name);
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 	// Internal Renderrer methods
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Renders an array of fields.
@@ -715,7 +794,7 @@ class Form {
 		return $output;
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Renders a single element array into HTML.
@@ -764,9 +843,12 @@ class Form {
 		isset($field['element']) OR
 			$field['element'] = in_array($field['type'], self::$_input_fields) ? 'input' : $field['type'];
 
+		// Do we need to handle and prep field value?
+		isset($field['no_value']) OR $field['no_value'] = FALSE;
+
 		// @TODO: Improve this
-		// Prepare field value, exclude buttons, checkboxes and radios
-		if (isset($field['value']) AND $field['type'] != 'button' AND !isset($field['toggle']))
+		// Prepare field value, exclude buttons and toggles
+		if ( ! $field['no_value'] AND isset($field['value']) AND $field['type'] != 'button' AND ! isset($field['toggle']))
 		{
 			$field['value'] = self::value($field['name'], $field['value']);
 		}
@@ -806,6 +888,10 @@ class Form {
 			$field['input_append'] = ' input-append';
 		}
 
+		// And as in after
+		isset($field['after']) AND is_array($field['after'])
+			AND $field['after'] = self::_render_fields($field['after']);
+
 		// Prep field placeholder map
 		foreach ($field as $key => $value)
 		{
@@ -816,7 +902,7 @@ class Form {
 		return str_replace(array_keys($field), array_values($field), $template);
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Renders a a subform array into HTML.
@@ -831,7 +917,7 @@ class Form {
 		return self::_render_fields($subform, FALSE);
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Renders a fieldset element and its embedded fields.
@@ -894,7 +980,7 @@ class Form {
 		return $output;
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Renders the passing array into an accordion element.
@@ -934,7 +1020,7 @@ class Form {
 		return self::_render_field($accordion, $name, self::$_accordion_template);
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Renders a textarea element.
@@ -946,7 +1032,7 @@ class Form {
 		return self::_render_field($field, $name, self::$_textarea_template);
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Renders a toggle element (checkbox/radio).
@@ -964,7 +1050,7 @@ class Form {
 		return self::_render_field($field, $name, self::$_toggle_template);
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Renders a group of toggle element (checkbox/radio).
@@ -1004,7 +1090,7 @@ class Form {
 		return self::_render_field($field, $name, self::$_toggles_template);
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Renders a button element.
@@ -1029,11 +1115,11 @@ class Form {
 
 		// Inline icon: prefix
 		isset($button['icon_prefix']) AND
-			$button['value'] = self::_render_icon($button['icon_prefix']) . $button['value'];
+			$button['value'] = self::_render_icon($button['icon_prefix']) . ' ' . $button['value'];
 
 		// Inline icon: suffix
 		isset($button['icon_suffix']) AND
-			$button['value'] .= self::_render_icon($button['icon_suffix']);
+			$button['value'] .= ' ' . self::_render_icon($button['icon_suffix']);
 
 		// Inline element?
 		$template = isset($button['inline'])
@@ -1043,7 +1129,7 @@ class Form {
 		return self::_render_field($button, $name, $template);
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Renders a markup element.
@@ -1082,7 +1168,7 @@ class Form {
 		return isset($markup['value']) ? $markup['value'] : '';
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Renders a select element.
@@ -1102,9 +1188,16 @@ class Form {
 		isset($dropdown['attributes']) OR $dropdown['attributes'] = array();
 		$dropdown['attributes'] += array('id' => 'edit-' . self::clean($name));
 
+		// @TODO: Replace with data-attributes
 		// Helps overcome dependent dropdowns issue on prepopulated options
-		(isset($dropdown['cached_value']) AND $dropdown['cached_value'])
-			AND $dropdown['attributes'] += array('cached_value' => $dropdown['value']);
+		if (isset($dropdown['cached_value']) AND $dropdown['cached_value'])
+		{
+			$dropdown['attributes'] += array(
+				'cached_value' => is_array($dropdown['value'])
+					? implode('|', $dropdown['value'])
+					: $dropdown['value']
+			);
+		}
 
 		// Parse attributes into string
 		$attributes = _parse_form_attributes($dropdown['attributes'], array());
@@ -1121,10 +1214,57 @@ class Form {
 			? self::$_dropdown_inline_template
 			: self::$_dropdown_template;
 
+		// Let the field renderer know that this field does not
+		// require a value since it's already themed, so it does
+		// not try to guess its possible values
+		unset($dropdown['value']);
+		$dropdown['no_value'] = TRUE;
+
 		return self::_render_field($dropdown, $name, $template);
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
+
+	/**
+	 * Renders a table element.
+	 *
+	 * @return string
+	 */
+	private static function _render_table($table, $name, $multistep = FALSE)
+	{
+		// Load CI table library
+		self::$CI->load->library('table');
+
+		// Set table caption
+		isset($table['caption']) AND self::$CI->table->set_caption($table['caption']);
+
+		// Set table heading
+		isset($table['heading']) AND self::$CI->table->set_heading($table['heading']);
+
+		// Set empty text
+		isset($table['empty']) AND self::$CI->table->set_empty($table['empty']);
+
+		// Set table classes
+		isset($table['class']) AND self::$CI->table->set_template(array(
+			'table_open' => '<table class="'. $table['class'] . '">',
+		));
+
+		// Load data from model, if requried
+		isset($table['data']) AND $table['body'] = self::_call_data_model($table['data'], 'to_array');
+
+		// Workaround MongoId objects (temporary)
+		foreach ($table['body'] as &$row)
+		{
+			$row = (array) $row;
+			isset($row['_id']) AND $row['_id'] = (string) $row['_id'];
+		}
+
+		// Theme data into table
+		self::$CI->table->function = 'xss_clean';
+		return self::$CI->table->generate($table['body']);
+	}
+
+	// --------------------------------------------------------------------
 
 	/**
 	 * Renders an icon element.
@@ -1136,7 +1276,7 @@ class Form {
 		return str_replace('{icon}', $icon, self::$_icon_template);
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Renders a hidden element.
@@ -1145,14 +1285,24 @@ class Form {
 	 */
 	public static function _render_hidden($field, $name, $multistep = FALSE)
 	{
-		// Get field value if it's an array
-		is_array($field) AND $field = $field['value'];
+		// Set initials
+		isset($field['value']) OR $field['value'] = '';
+		isset($field['class']) OR $field['class'] = '';
 
-		$hidden = str_replace('{name}', $name, self::$_hidden_template);
-		return str_replace('{value}', $field, $hidden);
+		return str_replace(array(
+			'{name}',
+			'{id}',
+			'{value}',
+			'{class}'
+		), array(
+			$name,
+			'edit-' . self::clean($name),
+			$field['value'],
+			$field['class']
+		), self::$_hidden_template);
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Renders a form element openning tag.
@@ -1181,7 +1331,7 @@ class Form {
 		return array($output, $form);
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Renders a form element closing tag.
@@ -1196,16 +1346,16 @@ class Form {
 		return $output . form_close($suffix);
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 	// Misc Helpers
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Builds a validation array out of the form array.
 	 *
 	 * @return array
 	 */
-	public static function _validate_rules($form)
+	private static function _validate_rules($form)
 	{
 		$rules = array();
 
@@ -1242,12 +1392,12 @@ class Form {
 		return $rules;
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
 
 	/**
 	 * Calls form field data model method.
 	 */
-	private static function _call_data_model($data)
+	private static function _call_data_model($data, $callback = FALSE)
 	{
 		// Get model data
 		list($model, $method) = explode('.', $data);
@@ -1267,6 +1417,13 @@ class Form {
 		// Load model, if not available
 		isset(self::$CI->$model_name) OR self::$CI->load->model($model, $model_name);
 
+		// Call the extra custom callback if possible, it's
+		// mostly used for "to_array", "to_object" kinda callbacks.
+		if ($callback AND method_exists(self::$CI->$model_name, $callback))
+		{
+			self::$CI->$model_name->$callback();
+		}
+
 		// Call the data method of provided model
 		// This will overwrite field "options" property
 		return method_exists(self::$CI->$model_name, $method)
@@ -1274,7 +1431,123 @@ class Form {
 			: array();
 	}
 
-	//--------------------------------------------------------------------
+	// --------------------------------------------------------------------
+
+	/**
+	 * Extracts value from an associative array by a POST-like fieldname.
+	 *
+	 * Example:
+	 *
+	 * This string:
+	 * my_group[my_subgroup][multiselect_field][]
+	 *
+	 * Requests the helper to extract the value of: (if exists)
+	 * $array[my_group][my_subgroup][multiselect_field]
+	 *
+	 * @param  string $name  Fieldname string.
+	 * @param  array  $array Haystack array to dig.
+	 *
+	 * @return array         Extracted value or FALSE on failure.
+	 */
+	private function _extract_array_value($name, array $array)
+	{
+		// Check if it's a array fieldname, go for brackets
+		if (strpos($name, '[') !== FALSE AND preg_match_all('/\[(.*?)\]/', $name, $matches))
+		{
+			$count  = count($matches[0]);
+			$keys[] = current(explode('[', $name));
+
+			// Extract fieldname keys
+			for ($i = 0; $i < $count; $i++)
+			{
+				$matches[1][$i] != '' AND $keys[] = $matches[1][$i];
+			}
+
+			// Well, we got keys! get the value
+			return self::_array_reduce($array, $keys);
+		}
+
+		return FALSE;
+	}
+
+	// --------------------------------------------------------------------
+
+	/**
+	 * Reduces the array by the passed array of keys which leds to find the value!
+	 *
+	 * Traverses a multi-dimensional array until the value of the keys specified
+	 * in keys array is found. Returns FALSE if not found.
+	 *
+	 * @param  array   $array Array to reduce.
+	 * @param  array   $keys  Array keys sequence. Traverse map in fact.
+	 * @param  integer $i     $keys array index to start from.
+	 *
+	 * @return array          Extracted value or FALSE on failure.
+	 */
+	private static function _array_reduce($array, $keys, $i = 0)
+	{
+		// Not an array, or a wrong index to start
+		if ( ! is_array($array) OR ! isset($keys[$i]))
+		{
+			return $array;
+		}
+
+		// Go deep, find the bitch!
+		return isset($array[$keys[$i]])
+			? self::_array_reduce($array[$keys[$i]], $keys, $i + 1)
+			: FALSE;
+	}
+
+	// --------------------------------------------------------------------
+
+	/**
+	 * Flattens a multidimentional array into POST proper flat equivalent.
+	 *
+	 * e.g.
+	 *
+	 * array('mykey' => array(
+	 * 		'value', 'other_value'
+	 * ));
+	 *
+	 * Will be converted to:
+	 *
+	 * array(
+	 * 		'mykey[0]' => 'value',
+	 * 		'mykey[1]' => 'other_value',
+	 * )
+	 *
+	 * @return array
+	 */
+	private static function _array_flatten(array $data, $prefix = FALSE)
+	{
+		$flatten = array();
+
+		foreach ($data as $key => $value)
+		{
+			if (is_scalar($value))
+			{
+				$prefix
+					? $flatten[$prefix . '[' . $key . ']'] = $value
+					: $flatten[$key] = $value;
+			}
+
+			// It's an scalar value (object, array, resource)
+			else if ( ! is_null($value))
+			{
+				// Cast objects to arrays
+				is_object($value) AND $value = json_decode(json_encode($value), TRUE);
+
+				$flatten = array_merge(
+					$flatten,
+					self::_array_flatten($value, $prefix ? $prefix . '[' . $key . ']' : $key)
+				);
+			}
+		}
+
+		return $flatten;
+	}
+
+	// --------------------------------------------------------------------
 
 }
 // End of Form class
