@@ -181,7 +181,7 @@ $config['form_login'] = array(
 			// Custom validation rule
 			'rules'      => 'callback__check_country[county]',
 			// Model data callback
-			'data'       => 'my_model.get_countries,
+			'data'       => 'my_model.get_countries',
 		),
 
 		//--------------------------------------------------------------------
