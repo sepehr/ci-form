@@ -2,7 +2,7 @@
 /**
  * CodeIgniter Drupal-inspited Form API plus Bootstrap integration
  *
- * NOTE: This library does not provide utilities to protect forms
+ * IMPORTANT: This library does not provide utilities to protect forms
  * against CSRF attacks. Make sure that you already turned CI's CSRF
  * protection ON.
  *
@@ -11,7 +11,7 @@
  * @copyright	Copyright (c) 2012 Sepehr Lajevardi.
  * @license		http://codeigniter.com/user_guide/license.html
  * @link		https://github.com/sepehr/ci-form
- * @version 	Version 1.0
+ * @version 	1.x-dev
  * @filesource
  */
 
@@ -31,20 +31,33 @@
  *				- Redocument, add usage examples
  * 				- Cleanup! It's very alpha, we need a better structure and more unified API
  * 				- There are a bunch of templates that could be merged together, redundancy sucks!
- * 				- Dependent dropdowns.
- * 				- Ajax API, if possible.
+ * 				- Dependent dropdowns. (e.g. Counties, Towns)
+ * 				- Dependent modals. (e.g. Sectors, Subsectors)
+ * 				- Javasctipt API.
  * 				- Move templates into config files.
  * 				- Make use of set_checkbox(), set_radio() when populating toggles.
  * 				- Language class integration.
  * 				- API for easy setting of data attributes.
  * 				- Support for Post/Redirect/Get pattern via sessions.
  * 				- Support for other UI frameworks (pluggable templates)
- * 				- Builder UI ;)
+ * 				- Builder UI, really?
+ * 				- Assets library integration to be able to load form-specific asset files on the fly.
+ * 				- Dependent validation rules. e.g. The "A" field is required only if "B" field has "X" value.
+ * 				- Protect multivalue components (dropdown, toggles, etc.) from HTML injection and data tamper.
+ * 				- Support for bootstrap timepicker, datepicker, rangepicker components.
+ * 				- Optional CSRF proftection per form.
+ * 				- Markup view components should have the option to get all form defaults in extracted separate vars.
+ * 				  self::$CI->load->view('VIEW_NAME', self::_values); // So the view will be aware of all form values
+ * 				- Rename self::_values to self::_vars, something more semantic, you know!
+ * 				- Form base model integration, details here: https://github.com/ShawnMcCool/laravel-form-base-model
+ * 				- Value formatter callbacks shold accept arguments in the same way that CI's validation library does:
+ * 				  'formatter' => 'format_callback_name[args]'
+ * 				  Formatters might be available globally, in a form validation class, form helpers or an extension of this class.
  */
 class Form {
 
 	/**
-	 * Stores the superobject.
+	 * Stores CI's superobject.
 	 * @var object
 	 */
 	private static $CI;
@@ -84,13 +97,13 @@ class Form {
 	 * @var string
 	 */
 	private static $_fieldset_defaults = array(
+		'type'       => 'fieldset',
 		'legend'     => '',
 		'prefix'     => '',
 		'suffix'     => '',
 		'active'     => FALSE,
 		'attributes' => array(),
 		'accordion'  => array(),
-		'type'       => 'fieldset',
 		'before'     => '',
 		'after'      => '',
 	);
@@ -105,14 +118,18 @@ class Form {
 		'type'            => 'text',
 		'required'        => FALSE,
 		'icon'            => FALSE,
+		'addon'           => FALSE,
 		'disabled'        => FALSE,
 		'readonly'        => FALSE,
 		'form_actions'    => FALSE,
 		'inline'          => FALSE,
+		'formatter'       => FALSE,
 		'error_type'      => 'block',
 		'help_type'       => 'block',
 		'class'           => 'form-control span2',
 		'required_markup' => ' <strong>*</strong>',
+		'wrapper_element' => 'div',
+		'wrapper_class'   => '',
 		'attributes'      => array(),
 		'input_append'    => '',
 		'render_class'    => '',
@@ -120,7 +137,6 @@ class Form {
 		'label'           => '',
 		'value'           => '',
 		'placeholder'     => '',
-		'wrapper_class'   => '',
 		'prefix'          => '',
 		'suffix'          => '',
 		'suffix_inline'   => '',
@@ -170,10 +186,10 @@ class Form {
 	 */
 	private static $_default_template = '
 	{before}
-	<div id="{wrapper_id}" class="control-group {type}-control-wrapper{wrapper_class}{error}">
-		<label class="control-label" for="{id}">{label}{required}</label>
-		<div class="controls">
-			<div class="input-prepend{input_append}">
+	<{wrapper_element} id="{wrapper_id}" class="control-group {type}-control-wrapper{wrapper_class}{error}">
+		{label}
+		<div class="controls {type}-controls">
+			<div class="{type}-input input-prepend{input_append}">
 				{icon}
 				{prefix}
 				<{element} id="{id}" class="{class}" placeholder="{placeholder}" name="{name}" type="{type}" value="{value}" {attributes} {disabled}{readonly}{checked}{selected} />
@@ -183,7 +199,7 @@ class Form {
 			</div> <!-- /.input-prepend -->
 			{suffix}
 		</div> <!-- /.controls -->
-	</div> <!-- /.control-group -->
+	</{wrapper_element}> <!-- /.control-group -->
 	{after}
 	{private}
 	';
@@ -196,10 +212,10 @@ class Form {
 	 */
 	private static $_default_inline_template = '
 	{before}
-	<div id="{wrapper_id}" class="input-prepend inline-field">
+	<{wrapper_element} id="{wrapper_id}" class="{type}-input input-prepend inline-field{wrapper_class}">
 		{icon}
 		<{element} id="{id}" class="{class}" placeholder="{placeholder}" name="{name}" type="{type}" value="{value}" {attributes} {disabled}{readonly}{checked}{selected} />
-	</div> <!-- /.input-prepend -->
+	</{wrapper_element}> <!-- /.input-prepend -->
 	{after}
 	{private}
 	';
@@ -221,17 +237,17 @@ class Form {
 	 * @var string
 	 */
 	private static $_accordion_template = '
-	<div {attributes}>
+	<{wrapper_element} {attributes}>
 		<div class="accordion-heading">
 			<a class="accordion-toggle" data-toggle="collapse" data-parent="#form-accordion" href="#{target_id}">{title}</a>
 		</div> <!-- /.accordion-heading -->
 
 		<div id="{target_id}" class="accordion-body collapse{active}">
-	        <div class="accordion-inner">
+	        <div class="accordion-inner clearfix">
 	        	{nav_prev} {body} {nav_next}
 	        </div> <!-- /.accordion-inner -->
 	    </div> <!-- /.accordion-body -->
-	</div> <!-- /.accordion-group -->
+	</{wrapper_element}> <!-- /.accordion-group -->
 	';
 
 	// --------------------------------------------------------------------
@@ -242,10 +258,10 @@ class Form {
 	 */
 	private static $_dropdown_template = '
 	{before}
-	<div id="{wrapper_id}" class="control-group {type}-control-wrapper{wrapper_class}{error}">
-		<label class="control-label" for="{id}">{label}{required}</label>
-		<div class="controls">
-			<div class="input-prepend{input_append}">
+	<{wrapper_element} id="{wrapper_id}" class="control-group {type}-control-wrapper{wrapper_class}{error}">
+		{label}
+		<div class="controls {type}-controls">
+			<div class="{type}-input input-prepend{input_append}">
 				{icon}
 				{prefix}
 				{options}
@@ -255,7 +271,7 @@ class Form {
 			</div> <!-- /.input-prepend -->
 			{suffix}
 		</div> <!-- /.controls -->
-	</div> <!-- /.control-group -->
+	</{wrapper_element}> <!-- /.control-group -->
 	{after}
 	{private}
 	';
@@ -268,11 +284,11 @@ class Form {
 	 */
 	private static $_dropdown_inline_template = '
 	{before}
-	<div class="input-prepend inline-field">
-		<label for="{id}">{label}{required}</label>
+	<{wrapper_element} class="{type}-input input-prepend inline-field{wrapper_class}">
+		{label}
 		{icon}
 		{options}
-	</div>
+	</{wrapper_element}>
 	{after}
 	{private}
 	';
@@ -285,10 +301,10 @@ class Form {
 	 */
 	private static $_button_template = '
 	{before}
-	<div class="controls{form_actions}">
+	<{wrapper_element} class="{type}-controls controls{wrapper_class}{form_actions}">
 		<{element} id="{id}" class="form-submit btn {class}" {attributes}>{value}</{element}>
 		{suffix_inline}
-	</div> <!-- /.controls -->
+	</{wrapper_element}> <!-- /.controls -->
 	{after}
 	{private}
 	';
@@ -314,10 +330,10 @@ class Form {
 	 */
 	private static $_textarea_template = '
 	{before}
-	<div id="{wrapper_id}" class="control-group {type}-control-wrapper{wrapper_class}{error}">
-		<label class="control-label" for="{id}">{label}{required}</label>
-		<div class="controls">
-			<div class="input-prepend{input_append}">
+	<{wrapper_element} id="{wrapper_id}" class="control-group {type}-control-wrapper{wrapper_class}{error}">
+		{label}
+		<div class="controls {type}-controls">
+			<div class="{type}-input input-prepend{input_append}">
 				{icon}
 				{prefix}
 				<textarea id="{id}" class="{class}" placeholder="{placeholder}" name="{name}" type="{type}" {attributes} {disabled}{readonly}>{value}</textarea>
@@ -327,7 +343,7 @@ class Form {
 			</div> <!-- /.input-prepend -->
 			{suffix}
 		</div> <!-- /.controls -->
-	</div> <!-- /.control-group -->
+	</{wrapper_element}> <!-- /.control-group -->
 	{after}
 	{private}
 	';
@@ -340,15 +356,15 @@ class Form {
 	 */
 	private static $_toggles_template = '
 	{before}
-	<div id="{wrapper_id}" class="control-group {type}-control-wrapper{wrapper_class}{error}">
+	<{wrapper_element} id="{wrapper_id}" class="control-group {type}-control-wrapper{wrapper_class}{error}">
 		<label class="control-label" for="{id}">{label}{required}</label>
-		<div class="controls">
+		<div class="controls {type}-controls">
 			{prefix}
 			{options}
 			{suffix_inline}
 		</div> <!-- /.controls -->
 		{suffix}
-	</div> <!-- /.control-group -->
+	</{wrapper_element}> <!-- /.control-group -->
 	{after}
 	{private}
 	';
@@ -361,8 +377,8 @@ class Form {
 	 */
 	private static $_toggle_template = '
 	{before}
-	<label class="{toggle} inline">
-		<input type="{toggle}" name="{name}" value="{value}" {attributes} {checked} /> {label}
+	<label for="{id}-{index}{rand}" id="{id}-{index}{rand}-label" class="{toggle} inline">
+		<input type="{toggle}" id="{id}-{index}{rand}" name="{name}" value="{value}" {attributes} {checked} /> {label}
 	</label>
 	{after}
 	{private}
@@ -412,13 +428,20 @@ class Form {
 	public static function get($form_name, $values = FALSE, $render = TRUE, $flush = FALSE)
 	{
 		static $cache = array();
+		self::$CI->benchmark->mark("form_render_of__{$form_name}__start");
 
-		// Internally cache the form array, since it might be
-		// used for several times in one request.
-		(isset($cache[$form_name]) AND !$flush) OR $cache[$form_name] = self::load($form_name, $values);
+		// Internally cache the form array
+		// @TODO: This should be moved to the load() function
+		if ($flush OR ! isset($cache[$form_name]))
+		{
+			$cache[$form_name] = self::load($form_name, $values);
+		}
 
-		// Return the form array or rendered HTML, if requested
-		return $render ? self::render($cache[$form_name]) : $cache[$form_name];
+		// Return the form array or rendered HTML, if requested so
+		$result = $render ? self::render($cache[$form_name]) : $cache[$form_name];
+
+		self::$CI->benchmark->mark("form_render_of__{$form_name}__end");
+		return $result;
 	}
 
 	// --------------------------------------------------------------------
@@ -427,6 +450,7 @@ class Form {
 	 * Loads a form definition array from a config file.
 	 *
 	 * @return array
+	 * @todo Implement internal static caching.
 	 */
 	public static function load($form_name, $values = FALSE)
 	{
@@ -492,7 +516,7 @@ class Form {
 	 *
 	 * @return boolean
 	 */
-	public static function validate($form_name, $CI = FALSE)
+	public static function validate($form_name, $CI = FALSE, $force_rules = array())
 	{
 		// Make sure that we have CI form validation class already in place.
 		class_exists('CI_Form_validation') OR self::$CI->load->library('form_validation');
@@ -509,7 +533,10 @@ class Form {
 			self::set_message($form['errors']);
 		}
 
+		// Build rules array
 		$rules = self::_validate_rules($form);
+		// Overwrite forced rules
+		is_array($force_rules) AND $rules = array_merge($rules, $force_rules);
 
 		// Pass it to the CI validation
 		return self::$CI
@@ -678,20 +705,37 @@ class Form {
 	/**
 	 * Returns form validation errors.
 	 *
+	 * @param bool $to_array Whether to return errors as an array or not.
+	 *
 	 * @return boolean
 	 */
 	public static function errors($to_array = FALSE)
 	{
-		if ($to_array)
-		{
-			// Remove error delimiters
-			self::$CI->form_validation->set_error_delimiters(FALSE, FALSE);
+		// Get form errors
+		$errors = $to_array
+			? self::$CI->form_validation->error_array()
+			: self::$CI->form_validation->error_string();
 
-			// Return validation errors array
-			return array_filter(explode("\n", validation_errors()));
+		// Sometimes it returns an empty string which may
+		// cause confusion whether the form had errors or not
+		if (empty($errors))
+		{
+			return FALSE;
 		}
 
-		return validation_errors();
+		return $errors;
+	}
+
+	// --------------------------------------------------------------------
+
+	/**
+	 * Returns form validation errors array.
+	 *
+	 * @return boolean
+	 */
+	public static function errors_array()
+	{
+		return self::errors(TRUE);
 	}
 
 	// --------------------------------------------------------------------
@@ -818,8 +862,10 @@ class Form {
 		// Add field extras
 		$field += array(
 			'name'       => $name,
-			'id'         => "edit-$clean",
 			'wrapper_id' => "$clean-wrapper",
+			'id'         => isset($field['attributes']['id'])
+				? $field['attributes']['id']
+				: "edit-$clean",
 		);
 
 		// Field help
@@ -838,6 +884,8 @@ class Form {
 
 		// Field icon
 		$field['icon'] AND $field['icon'] = '<span class="add-on">' . self::_render_icon($field['icon']) . '</span>';
+		// Field addon, overwrites icon
+		$field['addon'] AND $field['icon'] = '<span class="add-on">' . $field['addon'] . '</span>';
 
 		// Field element type
 		isset($field['element']) OR
@@ -853,12 +901,25 @@ class Form {
 			$field['value'] = self::value($field['name'], $field['value']);
 		}
 
+		// Value formatters? (callbacks)
+		if ( ! empty($field['formatter']) AND function_exists($field['formatter']))
+		{
+			$formatter      = $field['formatter'];
+			$field['value'] = $formatter($field['value']);
+		}
+
 		// Boolean flags
 		$field['readonly'] = $field['readonly'] ? ' readonly' : '';
 		$field['disabled'] = $field['disabled'] ? ' disabled' : '';
 
 		// Mark field as required if it's so
 		$field['required'] = strpos($field['rules'], 'required') === FALSE ? '' : $field['required_markup'];
+
+		// Build field label
+		if (isset($field['label']) AND $field['label'] AND $field['type'] != 'button' AND ! isset($field['toggle']))
+		{
+			$field['label'] = '<label class="control-label" for="' . $field['id'] . '">' . $field['label'] . $field['required'] . '</label>';
+		}
 
 		// Class strings
 		// @TODO: Fix form_actions. We should be able to group multiple buttons into one form_actions element
@@ -937,7 +998,7 @@ class Form {
 		$output .= '<fieldset ' . _parse_form_attributes($fieldset['attributes'], array()) . '>';
 
 		// Render fieldset legend
-		$fieldset['legend'] AND $output .= '<legend>' . $fieldset['legend'] . '</legend>';
+		$fieldset['legend'] AND $output .= '<legend><span>' . $fieldset['legend'] . '</span></legend>';
 
 		// Unset fieldset attributes
 		$_fieldset = $fieldset;
@@ -1059,12 +1120,23 @@ class Form {
 	 */
 	public static function _render_toggles($field, $name = FALSE, $multistep = FALSE)
 	{
+		$index   = 1;
 		$toggles = '';
 
 		// Load checkbox/radio data model if set
 		if (isset($field['data']))
 		{
-			$field['options'] = self::_call_data_model($field['data']);
+			$field['options'] = self::_get_data($field['data']);
+		}
+
+		// Seed random number generator to make sure that
+		// all toggle elements have their own unique ID.
+		// The problem may happen when including similarly
+		// structured forms in one page.
+		if (isset($field['rand']))
+		{
+			srand($field['rand']);
+			$field['rand'] = '-' . rand();
 		}
 
 		// Render each option as a single checkbox/radio element
@@ -1076,6 +1148,8 @@ class Form {
 				'label'   => $label,
 				'toggle'  => $field['toggle'],
 				'checked' => isset($field['value']) ? in_array($value, $field['value']) : FALSE,
+				'rand'    => isset($field['rand'])  ? $field['rand'] : '',
+				'index'   => $index++,
 			), $name);
 		}
 
@@ -1085,7 +1159,7 @@ class Form {
 
 		// Append a hidden helper field, this will let
 		// us detect unchecked toggles on form submits
-		$field['private'] = self::_render_hidden('1', self::clean($name) . '__toggle');
+		$field['private'] = self::_render_hidden(array('value' => 1, 'class' => 'toggle-mask'), self::clean($name) . '__toggle');
 
 		return self::_render_field($field, $name, self::$_toggles_template);
 	}
@@ -1178,7 +1252,7 @@ class Form {
 	private static function _render_dropdown($dropdown, $name, $multistep = FALSE)
 	{
 		// Load dropdown data model if set.
-		isset($dropdown['data']) AND $dropdown['options'] = self::_call_data_model($dropdown['data']);
+		isset($dropdown['data']) AND $dropdown['options'] = self::_get_data($dropdown['data']);
 
 		// Prepare value
 		isset($dropdown['value']) OR $dropdown['value'] = '';
@@ -1250,7 +1324,7 @@ class Form {
 		));
 
 		// Load data from model, if requried
-		isset($table['data']) AND $table['body'] = self::_call_data_model($table['data'], 'to_array');
+		isset($table['data']) AND $table['body'] = self::_get_data($table['data'], 'to_array');
 
 		// Workaround MongoId objects (temporary)
 		foreach ($table['body'] as &$row)
@@ -1285,7 +1359,14 @@ class Form {
 	 */
 	public static function _render_hidden($field, $name, $multistep = FALSE)
 	{
-		// Set initials
+		// Full field render?
+		if (is_array($field) AND ( ! empty($field['label']) OR ! empty($field['icon']) OR ! empty($field['addon'])))
+		{
+			return self::_render_field($field, $name);
+		}
+
+		// Or minimal inline render?
+		// @TODO: Fix & make it clear how to create each type.
 		isset($field['value']) OR $field['value'] = '';
 		isset($field['class']) OR $field['class'] = '';
 
@@ -1375,7 +1456,13 @@ class Form {
 				continue;
 			}
 
-			// Skip non-fields, or fields with no
+			// Extract rules from inline fields
+			if (isset($field['suffix_inline']) AND is_array($field['suffix_inline']))
+			{
+				$rules = array_merge($rules, self::_validate_rules($field['suffix_inline']));
+			}
+
+			// Skip non-fields, or fields with no rules
 			if ( ! is_array($field) OR ! isset($field['type']) OR ! isset($field['rules']))
 			{
 				continue;
@@ -1395,17 +1482,24 @@ class Form {
 	// --------------------------------------------------------------------
 
 	/**
-	 * Calls form field data model method.
+	 * Tries to fetch data by either calling a model method or
+	 * simply the form defaults.
 	 */
-	private static function _call_data_model($data, $callback = FALSE)
+	private static function _get_data($data, $callback = FALSE)
 	{
+		// Check form defaults first
+		if (isset(self::$_values[$data]))
+		{
+			return self::$_values[$data];
+		}
+
 		// Get model data
 		list($model, $method) = explode('.', $data);
 		$model_name = basename($model);
 
 		// Get method args, if any
 		preg_match('#\((.*?)\)#', $method, $match);
-		$arg    = isset($match[1]) ? $match[1] : FALSE;
+		$arg = isset($match[1]) ? $match[1] : FALSE;
 		strpos($method, '(') !== FALSE AND $method = strstr($method, '(', TRUE);
 
 		// Typecast boolean args
