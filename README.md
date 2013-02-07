@@ -40,7 +40,8 @@ Move each file to its corresponding directory in CodeIgniter `application/` dire
 				// Model interaction, etc...
 
 				// Flush form data if required, this will save us
-				// from expensive and unnecessary self redirects
+				// from expensive CI self redirects.
+				// @TODO: Implement PRG pattern helpers into the library.
 				Form::flush();
 			}
 
