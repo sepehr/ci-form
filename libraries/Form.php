@@ -26,9 +26,11 @@
  * @author		Sepehr Lajevardi <me@sepehr.ws>
  * @link		https://github.com/sepehr/ci-form
  * @todo		- Form caching
+ *        		- Captcha element
  * 				- Debug logs
  * 				- Error handling
  *				- Redocument, add usage examples
+ * 				- DB variable integration for admin forms (variable_set/variable_get/variable_del)
  * 				- Cleanup! It's very alpha, we need a better structure and more unified API
  * 				- There are a bunch of templates that could be merged together, redundancy sucks!
  * 				- Dependent dropdowns. (e.g. Counties, Towns)
@@ -192,7 +194,7 @@ class Form {
 			<div class="{type}-input input-prepend{input_append}">
 				{icon}
 				{prefix}
-				<{element} id="{id}" class="{class}" placeholder="{placeholder}" name="{name}" type="{type}" value="{value}" {attributes} {disabled}{readonly}{checked}{selected} />
+				<{element} id="{id}" class="{class}" placeholder="{placeholder}" name="{name}" type="{type}" value="{value}" {attributes} {disabled}{readonly}{checked}{selected} data-validate="{rules}" />
 				{suffix_inline}
 				{help_inline}
 				{help_block}
@@ -454,8 +456,7 @@ class Form {
 	 */
 	public static function load($form_name, $values = FALSE)
 	{
-		// Load form definition file,
-		// and set it to fail gracefully
+		// Load form definition file, and set it to fail gracefully
 		if (self::$CI->load->config($form_name, FALSE, TRUE))
 		{
 			// Get the array
@@ -471,7 +472,7 @@ class Form {
 		}
 
 		// Failed to load form definition file
-		log_message('error', 'Form definition failed: ' . $form_name);
+		$form_name AND log_message('error', 'Form definition load failed: ' . $form_name);
 		return FALSE;
 	}
 
@@ -953,6 +954,9 @@ class Form {
 		isset($field['after']) AND is_array($field['after'])
 			AND $field['after'] = self::_render_fields($field['after']);
 
+		// Prep client-side validation rules
+		isset($field['rules']) AND $field['rules'] = self::_prep_clientside_rules($field['rules']);
+
 		// Prep field placeholder map
 		foreach ($field as $key => $value)
 		{
@@ -1137,6 +1141,12 @@ class Form {
 		{
 			srand($field['rand']);
 			$field['rand'] = '-' . rand();
+		}
+
+		// Prep values array
+		if (isset($field['value']) AND ! is_array($field['value']))
+		{
+			$field['value'] = array($field['value']);
 		}
 
 		// Render each option as a single checkbox/radio element
@@ -1430,6 +1440,21 @@ class Form {
 	// --------------------------------------------------------------------
 	// Misc Helpers
 	// --------------------------------------------------------------------
+
+	/**
+	 * Prepares validation rules for client side.
+	 *
+	 * @param  string $rules CodeIgniter fieldvalidation rules string.
+	 *
+	 * @return string
+	 * @todo   Integrate with a jQuery form validation plugin.
+	 */
+	private function _prep_clientside_rules($rules)
+	{
+		return $rules;
+	}
+
+	// ------------------------------------------------------------------------
 
 	/**
 	 * Builds a validation array out of the form array.
